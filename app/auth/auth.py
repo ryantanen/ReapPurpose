@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from passlib.context import CryptContext
 from env import AUTH_SECRET_KEY
-from models import User, UserLogin, UserCreate, UserRead
+from models import User, UserLogin, UserCreate, UserRead, Statistics
 from typing import Annotated
 from fastapi import Depends, HTTPException, status
 from sqlmodel import Session, select
@@ -69,13 +69,27 @@ def login(db: Session, email: str, password: str):
     if not compare_pwd(password, user.hashed_password):
         return None
     
+    # Get user's statistics to get used_items count
+    stats = db.exec(select(Statistics).where(Statistics.user_id == user.id)).first()
+    used_items = stats.items_used if stats else 0
+    
     expires_delta = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"user_id": str(user.id)}, 
         expires_delta=expires_delta
     )
 
-    return UserLogin(access_token=access_token, user=UserRead(id=user.id, company=user.company, email=user.email, verified=user.email_verified), token_type="bearer")
+    return UserLogin(
+        access_token=access_token, 
+        user=UserRead(
+            id=user.id, 
+            company=user.company, 
+            email=user.email, 
+            verified=user.email_verified,
+            used_items=used_items
+        ), 
+        token_type="bearer"
+    )
 
 def create_user(user_data: UserCreate, db: Session):
     if db.exec(select(User).where(User.email == user_data.email)).first():
