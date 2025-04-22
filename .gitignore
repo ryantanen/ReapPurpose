@@ -2,6 +2,9 @@
 *.py[cod]
 __pycache__/
 *.so
+*.egg-info/
+dist/
+build/
 
 # FastAPI
 *.log
@@ -28,4 +31,10 @@ env/
 # Uvicorn
 *.pid
 
+# Environment files
+*.env
 env.py
+
+# Test coverage
+coverage/
+.coverage

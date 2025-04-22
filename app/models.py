@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel
 from sqlmodel import Field, Relationship, SQLModel
@@ -13,13 +14,12 @@ class User(SQLModel, table=True):
     email: str = Field(default=None, nullable=True)
     hashed_password: str
     email_verified: bool = Field(default=False)
-    
-    # Add these relationship definitions
     pantry_items: list["PantryItem"] = Relationship(back_populates="user")
     statistics: list["Statistics"] = Relationship(back_populates="user")
 
 class PantryItem(SQLModel, table=True):
     __tablename__ = 'pantry_items'
+    barcode: str | None = None
     name: str
     expires_at: str
     lastest_scan_time: str
@@ -39,6 +39,18 @@ class Statistics(SQLModel, table=True):
     enviroment_impact_co2: float
     enviroment_impact_water: float
 
+class KnownProduct(SQLModel, table=True):
+    __tablename__ = 'known_products'
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    barcode: str | None = Field(default=None, unique=True)
+    name: str
+    brand: str | None = None
+    category: str | None = None
+    created_by: uuid.UUID = Field(foreign_key='user.id')
+    creator: User = Relationship()
+    created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+    updated_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+
 # API Models
 class UserCreate(BaseModel):
     company: str
@@ -54,17 +66,19 @@ class UserRead(BaseModel):
 
 
 class PantryItemCreate(BaseModel):
+    barcode: str | None = None
     name: str
     expires_at: str
     lastest_scan_time: str
     quantity: int
     
 class PantryItemRead(BaseModel):
+    barcode: str | None = None
     name: str
     expires_at: str
     lastest_scan_time: str
     quantity: int
-    user_id: uuid.UUID
+    id: uuid.UUID
 
 class PantryRead(SQLModel):
     data: list[PantryItem] = []
@@ -75,3 +89,18 @@ class UserLogin(BaseModel):
     user: UserRead
     access_token: str
     token_type: str = 'bearer'
+
+class KnownProductCreate(BaseModel):
+    barcode: str | None = None
+    name: str
+    brand: str | None = None
+    category: str | None = None
+
+class KnownProductRead(BaseModel):
+    id: uuid.UUID
+    barcode: str | None = None
+    name: str
+    brand: str | None = None
+    category: str | None = None
+    created_at: str
+    updated_at: str

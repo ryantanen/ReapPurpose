@@ -12,7 +12,7 @@ import jwt
 
 
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 30 * 60 * 24
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
@@ -65,11 +65,8 @@ def get_active_user(current_user: Annotated[User, Depends(get_current_user)]):
 def login(db: Session, email: str, password: str):
     user = db.exec(select(User).where(User.email == email)).first()
     if not user:
-        print("User not found")
         return None
     if not compare_pwd(password, user.hashed_password):
-        print("Password not valid")
-        print(get_pwd_hash(password), user.hashed_password)
         return None
     
     expires_delta = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -83,7 +80,6 @@ def login(db: Session, email: str, password: str):
 def create_user(user_data: UserCreate, db: Session):
     if db.exec(select(User).where(User.email == user_data.email)).first():
         return None
-    print("PASSWORD", user_data.password)
     hashed_password = get_pwd_hash(user_data.password)
     user = User(
         email=user_data.email, 
