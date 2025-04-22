@@ -4,7 +4,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from typing import Annotated
 from auth.auth import get_current_user, login, create_user
 from sqlmodel import Session, select
-from models import User, PantryItem, PantryRead, PantryItemCreate, PantryItemRead, UserCreate, UserLogin, UserRead, KnownProduct, KnownProductCreate, KnownProductRead
+from models import User, PantryItem, PantryRead, PantryItemCreate, PantryItemRead, UserCreate, UserLogin, UserRead, KnownProduct, KnownProductCreate, KnownProductRead, Statistics
 from db import get_db
 from scan import process_barcode, ProductInfo, save_known_product, get_known_product
 
@@ -31,18 +31,37 @@ def get_user(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: Ses
     return result
 
 @app.get("/user/me", response_model=UserRead)
-def get_user_info(current_user: Annotated[User, Depends(get_current_user)]):
+def get_user_info(current_user: Annotated[User, Depends(get_current_user)], db: Session = Depends(get_db)):
     if not current_user:
         raise HTTPException(status_code=401, detail="Unauthorized")
-    return UserRead(id=current_user.id, company=current_user.company, email=current_user.email, verified=current_user.email_verified)
+    
+    # Get user's statistics
+    stats_statement = select(Statistics).where(Statistics.user_id == current_user.id)
+    stats = db.exec(stats_statement).first()
+    used_items = stats.items_used if stats else 0
+    
+    return UserRead(
+        id=current_user.id,
+        company=current_user.company,
+        email=current_user.email,
+        verified=current_user.email_verified,
+        used_items=used_items
+    )
 
 @app.post("/user", response_model=UserRead)
 def create_user_password(user: UserCreate, db: Session = Depends(get_db)):
     user: User = create_user(user, db)
     if not user:
         raise HTTPException(status_code=400, detail="User already exists")
-    return UserRead(id=user.id, company=user.company, email=user.email, verified=user.email_verified)
-
+    
+    # New users start with 0 used items
+    return UserRead(
+        id=user.id,
+        company=user.company,
+        email=user.email,
+        verified=user.email_verified,
+        used_items=0
+    )
 
 @app.post("/pantry/item", response_model=PantryItemCreate)
 def create_pantry_item(pantry_item: PantryItemCreate, user: Annotated[User, Depends(get_current_user)], db: Session = Depends(get_db)):
@@ -116,6 +135,24 @@ def delete_pantry_item(item_id: str, user: Annotated[User, Depends(get_current_u
         lastest_scan_time=pantry_item.lastest_scan_time,
         quantity=pantry_item.quantity
     )
+    
+    # Update statistics
+    stats_statement = select(Statistics).where(Statistics.user_id == user.id)
+    stats = db.exec(stats_statement).first()
+    if not stats:
+        # Create new statistics record if it doesn't exist
+        stats = Statistics(
+            user_id=user.id,
+            tracked_items=0,
+            items_used=1,
+            total_items=1,
+            enviroment_impact_co2=0.0,
+            enviroment_impact_water=0.0
+        )
+        db.add(stats)
+    else:
+        stats.items_used += 1
+        stats.total_items += 1
     
     db.delete(pantry_item)
     db.commit()

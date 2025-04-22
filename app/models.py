@@ -63,6 +63,7 @@ class UserRead(BaseModel):
     company: str
     email: str | None = None
     verified: bool | None = None
+    used_items: int
 
 
 class PantryItemCreate(BaseModel):
